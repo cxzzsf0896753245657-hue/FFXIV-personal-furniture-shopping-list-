@@ -1,585 +1,879 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FF14 家具辨識工具</title>
+<title>FF14 家具辨識器</title>
 <style>
+  :root {
+    --bg: #0f0e17;
+    --surface: #1a1825;
+    --surface2: #231f32;
+    --border: #2e2a42;
+    --accent: #c9a96e;
+    --accent2: #7b6ea0;
+    --text: #e8e4f0;
+    --text-muted: #8a849e;
+    --success: #6ecaa0;
+    --error: #ca6e7b;
+    --font-display: 'Georgia', 'Times New Roman', serif;
+    --font-body: 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'Consolas', monospace;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    background: #1a1a2e;
-    color: #e0e0e0;
-    font-family: "Noto Sans TC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
     min-height: 100vh;
+    line-height: 1.6;
   }
 
+  /* ── Header ── */
   header {
-    background: #16213e;
-    border-bottom: 2px solid #c8a96e;
-    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
     display: flex;
     align-items: center;
-    gap: 12px;
-  }
-  header h1 { font-size: 1.3rem; color: #c8a96e; }
-  header span { font-size: 0.85rem; color: #888; }
-
-  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-
-  /* 上傳區 */
-  .upload-area {
-    border: 2px dashed #c8a96e55;
-    border-radius: 12px;
-    padding: 40px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: #16213e;
-    margin-bottom: 24px;
-  }
-  .upload-area:hover, .upload-area.drag-over {
-    border-color: #c8a96e;
-    background: #1e2d4a;
-  }
-  .upload-area .icon { font-size: 3rem; margin-bottom: 12px; }
-  .upload-area p { color: #aaa; margin-top: 8px; font-size: 0.9rem; }
-  .upload-area input { display: none; }
-
-  .btn {
-    background: #c8a96e;
-    color: #1a1a2e;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background 0.2s;
-    margin-top: 12px;
-  }
-  .btn:hover { background: #e0c080; }
-  .btn:disabled { background: #555; color: #888; cursor: not-allowed; }
-
-  /* 預覽截圖區 */
-  .previews {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-  .preview-item {
-    position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid #333;
-  }
-  .preview-item img { display: block; max-height: 200px; max-width: 300px; }
-  .preview-item .remove {
-    position: absolute; top: 4px; right: 4px;
-    background: #c0392b; color: white; border: none;
-    border-radius: 50%; width: 22px; height: 22px;
-    cursor: pointer; font-size: 14px; line-height: 22px;
-  }
-  .preview-label {
-    background: #00000088;
-    color: #c8a96e;
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    text-align: center;
+    gap: 16px;
+    background: var(--surface);
   }
 
-  /* 狀態列 */
-  .status-bar {
-    background: #16213e;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 24px;
-    font-size: 0.9rem;
-    color: #aaa;
-    display: none;
-  }
-  .status-bar.active { display: block; }
-  .progress-bar {
-    height: 4px;
-    background: #333;
-    border-radius: 2px;
-    margin-top: 8px;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    background: #c8a96e;
-    transition: width 0.3s;
-    width: 0%;
+  header .crystal {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+    flex-shrink: 0;
   }
 
-  /* 結果區 */
-  .results-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
+  header h1 {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: normal;
+    letter-spacing: 0.04em;
+    color: var(--accent);
   }
-  .results-header h2 { font-size: 1.1rem; color: #c8a96e; }
-  .results-header .count { color: #888; font-size: 0.9rem; }
 
-  .results-grid {
+  header p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  /* ── Layout ── */
+  .main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: 360px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .main { grid-template-columns: 1fr; }
+  }
+
+  /* ── Panel ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .panel-title {
+    padding: 14px 20px;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    font-family: var(--font-mono);
+  }
+
+  /* ── Upload zone ── */
+  .upload-area {
+    padding: 24px;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(201, 169, 110, 0.05);
+  }
+
+  .drop-zone input {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .drop-zone .icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    filter: grayscale(0.3);
+  }
+
+  .drop-zone p { color: var(--text-muted); font-size: 0.875rem; }
+  .drop-zone strong { color: var(--accent); }
+
+  /* preview image */
+  #preview-wrap {
+    margin-top: 16px;
+    display: none;
+    position: relative;
+  }
+
+  #preview-wrap canvas {
+    width: 100%;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+
+  /* ── Controls ── */
+  .controls {
+    padding: 16px 24px 24px;
+    display: flex;
+    flex-direction: column;
     gap: 12px;
-    margin-bottom: 32px;
+  }
+
+  label { font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
+
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .slider-row {
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .slider-val {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    min-width: 24px;
+    text-align: right;
+  }
+
+  select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    padding: 10px 20px;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  button:hover { opacity: 0.88; }
+  button:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0f0e17;
+    font-weight: 600;
+    width: 100%;
+    padding: 12px;
+  }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    width: 100%;
+  }
+
+  /* ── Status bar ── */
+  #status {
+    padding: 10px 20px;
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #status.loading { color: var(--accent); }
+  #status.error   { color: var(--error); }
+  #status.ok      { color: var(--success); }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* ── Results panel ── */
+  .results-area { padding: 20px; }
+
+  /* summary chips */
+  .summary-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .chip span { color: var(--accent); font-weight: 600; }
+
+  /* filter bar */
+  .filter-bar {
+    display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+
+  .filter-bar input {
+    flex: 1; min-width: 140px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+  }
+
+  .filter-bar select {
+    width: auto; flex: 0 0 auto;
+  }
+
+  /* grid */
+  .furniture-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
   }
 
   .furniture-card {
-    background: #16213e;
-    border: 1px solid #2a3a5c;
-    border-radius: 10px;
-    padding: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 10px;
     text-align: center;
-    transition: border-color 0.2s;
-  }
-  .furniture-card:hover { border-color: #c8a96e; }
-  .furniture-card img {
-    width: 48px; height: 48px;
-    object-fit: contain;
-    image-rendering: pixelated;
-    margin-bottom: 8px;
-  }
-  .furniture-card .name {
-    font-size: 0.8rem;
-    color: #e0e0e0;
-    line-height: 1.3;
-    margin-bottom: 4px;
-    word-break: break-all;
-  }
-  .furniture-card .cat {
-    font-size: 0.7rem;
-    color: #888;
-    margin-bottom: 6px;
-  }
-  .furniture-card .qty {
-    background: #c8a96e22;
-    border: 1px solid #c8a96e55;
-    color: #c8a96e;
-    border-radius: 12px;
-    padding: 2px 10px;
-    font-size: 0.8rem;
-    font-weight: bold;
+    transition: border-color 0.15s;
+    position: relative;
   }
 
-  /* 無結果 */
-  .no-results {
+  .furniture-card:hover { border-color: var(--accent2); }
+
+  .furniture-card img {
+    width: 56px; height: 56px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    margin-bottom: 6px;
+  }
+
+  .furniture-card .name {
+    font-size: 0.72rem;
+    color: var(--text);
+    line-height: 1.3;
+    word-break: break-all;
+  }
+
+  .furniture-card .cat {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .furniture-card .qty-badge {
+    position: absolute;
+    top: 6px; right: 8px;
+    background: var(--accent);
+    color: #0f0e17;
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    padding: 1px 6px;
+    border-radius: 10px;
+  }
+
+  .furniture-card .confidence {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    margin-top: 4px;
+  }
+
+  /* empty state */
+  .empty-state {
+    padding: 60px 20px;
     text-align: center;
-    color: #555;
-    padding: 40px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .empty-state .big { font-size: 2.5rem; margin-bottom: 12px; }
+
+  /* progress bar */
+  #progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
     display: none;
   }
 
-  /* Canvas（隱藏，用於圖像處理）*/
-  #workCanvas { display: none; }
-
-  /* Debug 模式 */
-  .debug-section {
-    background: #0d1117;
-    border-radius: 8px;
-    padding: 16px;
-    margin-top: 32px;
-    font-size: 0.75rem;
-    color: #555;
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    width: 0%;
+    transition: width 0.3s;
   }
-  .debug-section summary { cursor: pointer; color: #888; margin-bottom: 8px; }
-  #debugLog { white-space: pre; max-height: 200px; overflow-y: auto; }
+
+  /* export buttons */
+  .export-row {
+    display: flex; gap: 8px; margin-bottom: 16px;
+  }
+
+  .export-row button {
+    flex: 1;
+    padding: 8px;
+    font-size: 0.8rem;
+  }
+
+  /* scrollable results */
+  #results-scroll {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  #results-scroll::-webkit-scrollbar { width: 5px; }
+  #results-scroll::-webkit-scrollbar-track { background: var(--surface); }
+  #results-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 </style>
 </head>
 <body>
 
 <header>
+  <div class="crystal"></div>
   <div>
-    <h1>⚒ FF14 家具辨識工具</h1>
-    <span id="dbStatus">正在載入家具資料庫...</span>
+    <h1>FF14 家具辨識器</h1>
+    <p>上傳背包截圖，自動辨識持有家具</p>
   </div>
 </header>
 
-<div class="container">
+<div class="main">
 
-  <!-- 上傳區 -->
-  <div class="upload-area" id="uploadArea">
-    <div class="icon">📦</div>
-    <div><strong>點擊上傳</strong>或拖曳截圖到此處</div>
-    <p>支援背包、倉庫截圖，可同時上傳多張</p>
-    <p>支援 PNG、JPG、WebP</p>
-    <input type="file" id="fileInput" accept="image/*" multiple>
-    <br>
-    <button class="btn" onclick="document.getElementById('fileInput').click()">選擇截圖</button>
-  </div>
+  <!-- LEFT: upload + controls -->
+  <div>
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-title">📂 上傳截圖</div>
+      <div class="upload-area">
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="file-input" accept="image/*">
+          <div class="icon">🗂️</div>
+          <p><strong>點擊選擇</strong>或拖曳圖片到此處</p>
+          <p style="margin-top:6px;font-size:0.75rem">支援 PNG / JPG / WebP</p>
+        </div>
+        <div id="preview-wrap">
+          <canvas id="preview-canvas"></canvas>
+        </div>
+      </div>
 
-  <!-- 預覽 -->
-  <div class="previews" id="previews"></div>
+      <div class="controls">
+        <div>
+          <label>pHash 比對門檻（越低越嚴格）</label>
+          <div class="slider-row">
+            <input type="range" id="threshold" min="5" max="30" value="15">
+            <span class="slider-val" id="threshold-val">15</span>
+          </div>
+        </div>
+        <div>
+          <label>格子大小（像素）</label>
+          <div class="slider-row">
+            <input type="range" id="slot-size" min="20" max="80" value="40">
+            <span class="slider-val" id="slot-size-val">40</span>
+          </div>
+        </div>
+        <div>
+          <label>格子間距（像素）</label>
+          <div class="slider-row">
+            <input type="range" id="slot-gap" min="0" max="20" value="4">
+            <span class="slider-val" id="slot-gap-val">4</span>
+          </div>
+        </div>
+        <div>
+          <label>自動偵測格子 offset</label>
+          <select id="detect-mode">
+            <option value="auto">自動偵測（推薦）</option>
+            <option value="manual">手動：從左上角 (0,0) 開始</option>
+          </select>
+        </div>
 
-  <!-- 開始辨識按鈕 -->
-  <div style="text-align:center; margin-bottom:24px;">
-    <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>開始辨識</button>
-  </div>
+        <button class="btn-primary" id="btn-detect" disabled>🔍 開始辨識</button>
+        <button class="btn-secondary" id="btn-clear">清除</button>
+      </div>
 
-  <!-- 狀態列 -->
-  <div class="status-bar" id="statusBar">
-    <span id="statusText">準備中...</span>
-    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-  </div>
-
-  <!-- 結果 -->
-  <div id="resultsSection" style="display:none;">
-    <div class="results-header">
-      <h2>辨識結果</h2>
-      <span class="count" id="resultCount"></span>
+      <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+      <div id="status"><div class="dot"></div><span id="status-text">等待上傳圖片…</span></div>
     </div>
-    <div class="results-grid" id="resultsGrid"></div>
+
+    <div class="panel">
+      <div class="panel-title">📊 資料庫狀態</div>
+      <div style="padding:14px 20px;font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono);">
+        <div id="db-info">載入中…</div>
+      </div>
+    </div>
   </div>
 
-  <div class="no-results" id="noResults">找不到任何家具，請確認截圖是否為背包或倉庫畫面</div>
-
-  <!-- Canvas（圖像處理用） -->
-  <canvas id="workCanvas"></canvas>
-
-  <!-- Debug -->
-  <details class="debug-section">
-    <summary>Debug 資訊</summary>
-    <div id="debugLog"></div>
-  </details>
+  <!-- RIGHT: results -->
+  <div class="panel">
+    <div class="panel-title">🪑 辨識結果</div>
+    <div class="results-area">
+      <div class="summary-row" id="summary-row"></div>
+      <div class="export-row" id="export-row" style="display:none">
+        <button class="btn-secondary" onclick="exportCSV()">⬇ 匯出 CSV</button>
+        <button class="btn-secondary" onclick="exportJSON()">⬇ 匯出 JSON</button>
+        <button class="btn-secondary" onclick="copyNames()">📋 複製名稱</button>
+      </div>
+      <div class="filter-bar" id="filter-bar" style="display:none">
+        <input type="text" id="search-input" placeholder="搜尋家具名稱…" oninput="renderResults()">
+        <select id="cat-filter" onchange="renderResults()">
+          <option value="">全部類別</option>
+        </select>
+      </div>
+      <div id="results-scroll">
+        <div class="empty-state" id="empty-state">
+          <div class="big">🏠</div>
+          <div>上傳截圖後，辨識結果會顯示於此</div>
+        </div>
+        <div class="furniture-grid" id="furniture-grid"></div>
+      </div>
+    </div>
+  </div>
 
 </div>
 
 <script>
-// ── 設定 ──────────────────────────────────────────────
-const DATA_URL  = "./data/furniture.json";
-const ICONS_DIR = "./icons/";
+// ── Config ──────────────────────────────────────────────────────────────────
+const CATEGORY_MAP = {
+  57:'室內家具', 64:'建設許可', 65:'屋頂', 66:'外牆', 67:'窗戶',
+  68:'門', 69:'屋頂裝飾', 70:'外牆裝飾', 71:'門牌', 72:'圍欄',
+  73:'內牆', 74:'地板', 75:'天花板燈', 76:'室外家具', 77:'桌子',
+  78:'桌上擺件', 79:'壁掛', 80:'地毯', 95:'繪畫'
+};
 
-// ── 全域狀態 ──────────────────────────────────────────
-let furnitureDB  = [];      // 完整家具資料庫
-let iconCache    = {};      // 已載入的圖示 ImageData
-let uploadedFiles = [];     // 使用者上傳的檔案
-let results      = {};      // { itemId: { item, count } }
+// ── State ────────────────────────────────────────────────────────────────────
+let furnitureDB = [];   // [{id, name, category, categoryId, iconUrl}]
+let pHashDB = {};       // {id: Uint8Array(8)}  — lazy-built from icons/
+let detectedItems = []; // [{id, name, category, iconUrl, qty, confidence}]
+let uploadedImage = null;
 
-// ── 初始化：載入家具資料庫 ────────────────────────────
-async function init() {
-  log("開始載入家具資料庫...");
+// ── DB Load ──────────────────────────────────────────────────────────────────
+async function loadDB() {
+  setStatus('loading', '載入家具資料庫…');
   try {
-    const resp = await fetch(DATA_URL);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    furnitureDB = await resp.json();
-    document.getElementById("dbStatus").textContent =
-      "已載入 " + furnitureDB.length + " 筆家具資料";
-    log("資料庫載入完成，共 " + furnitureDB.length + " 筆");
+    const res = await fetch('data/furniture.json');
+    furnitureDB = await res.json();
+    document.getElementById('db-info').textContent =
+      `家具總數：${furnitureDB.length} 筆 | 類別：${Object.keys(CATEGORY_MAP).length} 種`;
+    setStatus('ok', `資料庫就緒（${furnitureDB.length} 項家具）`);
+
+    // populate category filter
+    const sel = document.getElementById('cat-filter');
+    const cats = [...new Set(furnitureDB.map(f => f.category))].sort();
+    cats.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
   } catch(e) {
-    document.getElementById("dbStatus").textContent = "❌ 資料庫載入失敗：" + e.message;
-    log("資料庫載入失敗：" + e);
+    setStatus('error', '無法載入 data/furniture.json：' + e.message);
+    document.getElementById('db-info').textContent = '載入失敗';
   }
 }
 
-// ── 上傳處理 ──────────────────────────────────────────
-document.getElementById("fileInput").addEventListener("change", function(e) {
-  handleFiles(Array.from(e.target.files));
-});
-
-const uploadArea = document.getElementById("uploadArea");
-uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("drag-over"); });
-uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("drag-over"));
-uploadArea.addEventListener("drop", e => {
-  e.preventDefault();
-  uploadArea.classList.remove("drag-over");
-  handleFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/")));
-});
-
-function handleFiles(files) {
-  files.forEach(file => {
-    if (!file.type.startsWith("image/")) return;
-    uploadedFiles.push(file);
-    addPreview(file, uploadedFiles.length - 1);
-  });
-  document.getElementById("analyzeBtn").disabled = uploadedFiles.length === 0 || furnitureDB.length === 0;
-}
-
-function addPreview(file, idx) {
-  const div = document.createElement("div");
-  div.className = "preview-item";
-  div.id = "preview-" + idx;
-  const url = URL.createObjectURL(file);
-  div.innerHTML = `
-    <img src="${url}">
-    <button class="remove" onclick="removeFile(${idx})">×</button>
-    <div class="preview-label">${file.name}</div>
-  `;
-  document.getElementById("previews").appendChild(div);
-}
-
-function removeFile(idx) {
-  uploadedFiles[idx] = null;
-  const el = document.getElementById("preview-" + idx);
-  if (el) el.remove();
-  const remaining = uploadedFiles.filter(f => f !== null);
-  document.getElementById("analyzeBtn").disabled = remaining.length === 0;
-}
-
-// ── 主要辨識流程 ──────────────────────────────────────
-async function startAnalysis() {
-  const files = uploadedFiles.filter(f => f !== null);
-  if (files.length === 0) return;
-
-  results = {};
-  document.getElementById("analyzeBtn").disabled = true;
-  document.getElementById("resultsSection").style.display = "none";
-  document.getElementById("noResults").style.display = "none";
-
-  showStatus("正在預載圖示資料庫...", 0);
-
-  // 預載所有家具圖示
-  await preloadIcons();
-
-  showStatus("開始辨識截圖...", 10);
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const pct  = 10 + (i / files.length) * 85;
-    showStatus(`辨識第 ${i+1}/${files.length} 張：${file.name}`, pct);
-    log("處理：" + file.name);
-    await analyzeImage(file);
+// ── pHash ────────────────────────────────────────────────────────────────────
+function computePHash(imageData, size = 32, hashSize = 8) {
+  // 1. Resize to size×size via averaging
+  const { data, width, height } = imageData;
+  const scale_x = width / size, scale_y = height / size;
+  const small = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const sx = Math.floor(x * scale_x), sy = Math.floor(y * scale_y);
+      const idx = (sy * width + sx) * 4;
+      small[y * size + x] = 0.299*data[idx] + 0.587*data[idx+1] + 0.114*data[idx+2];
+    }
   }
 
-  showStatus("辨識完成！", 100);
-  renderResults();
-  document.getElementById("analyzeBtn").disabled = false;
-}
-
-// ── 預載圖示 ──────────────────────────────────────────
-async function preloadIcons() {
-  const canvas  = document.getElementById("workCanvas");
-  const ctx     = canvas.getContext("2d");
-  const total   = furnitureDB.length;
-  let loaded    = 0;
-
-  const batchSize = 20;
-  for (let i = 0; i < furnitureDB.length; i += batchSize) {
-    const batch = furnitureDB.slice(i, i + batchSize);
-    await Promise.all(batch.map(item => loadIcon(item, canvas, ctx)));
-    loaded += batch.length;
-    showStatus("預載圖示 " + Math.min(loaded, total) + "/" + total, (loaded / total) * 10);
-  }
-  log("圖示預載完成，共 " + Object.keys(iconCache).length + " 個");
-}
-
-function loadIcon(item, canvas, ctx) {
-  return new Promise(resolve => {
-    const img = new Image();
-    const src = ICONS_DIR + item.id + ".png";
-    img.onload = () => {
-      canvas.width  = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      try {
-        iconCache[item.id] = ctx.getImageData(0, 0, img.width, img.height);
-      } catch(e) {}
-      resolve();
-    };
-    img.onerror = () => resolve(); // 圖示不存在就跳過
-    img.src = src;
-  });
-}
-
-// ── 分析單張截圖 ──────────────────────────────────────
-async function analyzeImage(file) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.getElementById("workCanvas");
-      const ctx    = canvas.getContext("2d");
-      canvas.width  = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-
-      const slots = detectSlots(img.width, img.height, canvas, ctx);
-      log("偵測到 " + slots.length + " 個格子");
-
-      slots.forEach(slot => {
-        const match = matchSlot(slot.imageData);
-        if (match) {
-          if (results[match.id]) {
-            results[match.id].count++;
-          } else {
-            results[match.id] = { item: match, count: 1 };
-          }
+  // 2. DCT
+  const dct = new Float32Array(size * size);
+  for (let u = 0; u < size; u++) {
+    for (let v = 0; v < size; v++) {
+      let sum = 0;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          sum += small[y*size+x]
+            * Math.cos((2*x+1)*u*Math.PI/(2*size))
+            * Math.cos((2*y+1)*v*Math.PI/(2*size));
         }
-      });
-      resolve();
+      }
+      const cu = u === 0 ? 1/Math.sqrt(2) : 1;
+      const cv = v === 0 ? 1/Math.sqrt(2) : 1;
+      dct[u*size+v] = 0.25 * cu * cv * sum;
+    }
+  }
+
+  // 3. Top-left hashSize×hashSize (skip DC)
+  const vals = [];
+  for (let u = 0; u < hashSize; u++)
+    for (let v = 0; v < hashSize; v++)
+      vals.push(dct[u*size+v]);
+  const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
+  const bits = vals.map(v => v > avg ? 1 : 0);
+
+  // pack into bytes
+  const bytes = new Uint8Array(Math.ceil(bits.length/8));
+  bits.forEach((b,i) => { if(b) bytes[i>>3] |= 1<<(7-(i&7)); });
+  return bytes;
+}
+
+function hammingDistance(a, b) {
+  let d = 0;
+  for (let i = 0; i < a.length; i++) {
+    let x = a[i] ^ b[i];
+    while (x) { d += x & 1; x >>= 1; }
+  }
+  return d;
+}
+
+// Load icon and return pHash
+const iconHashCache = {};
+async function getIconHash(itemId) {
+  if (iconHashCache[itemId]) return iconHashCache[itemId];
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const hash = computePHash(ctx.getImageData(0, 0, c.width, c.height));
+      iconHashCache[itemId] = hash;
+      resolve(hash);
     };
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => resolve(null);
+    img.src = `icons/${itemId}.png`;
   });
 }
 
-// ── 偵測背包格子 ──────────────────────────────────────
-function detectSlots(imgW, imgH, canvas, ctx) {
-  const slots = [];
-  // FF14 背包格子大小約為畫面寬的 1/25，自動推算
-  // 常見解析度下格子約 40~50px
-  const slotSize = Math.round(imgW / 25);
-  const step     = slotSize + Math.round(slotSize * 0.15); // 格子間距
+// ── Slot detection ────────────────────────────────────────────────────────────
+function detectSlots(canvas) {
+  const slotSize = parseInt(document.getElementById('slot-size').value);
+  const slotGap  = parseInt(document.getElementById('slot-gap').value);
+  const step = slotSize + slotGap;
+  const mode = document.getElementById('detect-mode').value;
 
-  // 掃描整張圖，找出非空白的格子區域
-  for (let y = 0; y + slotSize < imgH; y += step) {
-    for (let x = 0; x + slotSize < imgW; x += step) {
-      const data = ctx.getImageData(x, y, slotSize, slotSize);
-      if (isNonEmpty(data)) {
-        slots.push({ x, y, imageData: data });
+  const W = canvas.width, H = canvas.height;
+  const slots = [];
+
+  let startX = 0, startY = 0;
+
+  if (mode === 'auto') {
+    // Find first dark-background slot by scanning for grid-like repeating structure
+    // Simple heuristic: find columns/rows where average brightness changes regularly
+    // Fallback to (0,0) if detection fails
+    const ctx = canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, W, H);
+
+    // try to find grid start by looking for the first row/col where
+    // there's a slotSize-wide region with consistent interior brightness
+    let bestX = 0, bestY = 0;
+    outer:
+    for (let ty = 0; ty < Math.min(H, 60); ty++) {
+      for (let tx = 0; tx < Math.min(W, 60); tx++) {
+        // Check if tx,ty could be a slot top-left (interior relatively uniform)
+        let ok = true;
+        const samples = [];
+        for (let dy = 2; dy < slotSize-2; dy += 4) {
+          for (let dx = 2; dx < slotSize-2; dx += 4) {
+            const ix = (tx+dx), iy = (ty+dy);
+            if (ix >= W || iy >= H) { ok = false; break; }
+            const i = (iy*W+ix)*4;
+            samples.push(img.data[i]*0.3 + img.data[i+1]*0.59 + img.data[i+2]*0.11);
+          }
+          if (!ok) break;
+        }
+        if (!ok || samples.length === 0) continue;
+        const mean = samples.reduce((a,b)=>a+b)/samples.length;
+        const variance = samples.reduce((a,b)=>a+(b-mean)**2,0)/samples.length;
+        if (variance < 400) { bestX = tx; bestY = ty; break outer; }
       }
+    }
+    startX = bestX; startY = bestY;
+  }
+
+  for (let y = startY; y + slotSize <= H; y += step) {
+    for (let x = startX; x + slotSize <= W; x += step) {
+      slots.push({ x, y, w: slotSize, h: slotSize });
     }
   }
   return slots;
 }
 
-// 判斷格子是否有內容（非全黑/全透明）
-function isNonEmpty(imageData) {
-  const d = imageData.data;
-  let nonBlack = 0;
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i], g = d[i+1], b = d[i+2];
-    if (r > 30 || g > 30 || b > 30) nonBlack++;
-  }
-  return nonBlack > (d.length / 4) * 0.1; // 超過10%非黑色像素
-}
+// ── Identify ──────────────────────────────────────────────────────────────────
+async function identify() {
+  if (!uploadedImage || furnitureDB.length === 0) return;
 
-// ── 圖示比對（感知哈希 pHash）────────────────────────
-function matchSlot(slotData) {
-  const slotHash = pHash(slotData);
-  let bestMatch  = null;
-  let bestDist   = Infinity;
+  const threshold = parseInt(document.getElementById('threshold').value);
 
-  for (const [id, cachedData] of Object.entries(iconCache)) {
-    const dist = hammingDistance(slotHash, pHash(cachedData));
-    if (dist < bestDist) {
-      bestDist  = dist;
-      bestMatch = id;
+  // draw to canvas
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = uploadedImage.naturalWidth;
+  canvas.height = uploadedImage.naturalHeight;
+  ctx.drawImage(uploadedImage, 0, 0);
+
+  const slots = detectSlots(canvas);
+  setStatus('loading', `偵測到 ${slots.length} 個格子，開始比對…`);
+  showProgress(0);
+
+  const counts = {};  // itemId → {item, count, bestConf}
+  const tmpCanvas = document.createElement('canvas');
+  const tmpCtx = tmpCanvas.getContext('2d');
+
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+
+    // extract slot image
+    tmpCanvas.width = slot.w; tmpCanvas.height = slot.h;
+    tmpCtx.drawImage(canvas, slot.x, slot.y, slot.w, slot.h, 0, 0, slot.w, slot.h);
+    const slotHash = computePHash(tmpCtx.getImageData(0, 0, slot.w, slot.h));
+
+    // draw debug overlay on main canvas
+    ctx.strokeStyle = 'rgba(201,169,110,0.25)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
+
+    // compare to all furniture icons
+    let bestDist = Infinity, bestItem = null;
+    for (const item of furnitureDB) {
+      const hash = await getIconHash(item.id);
+      if (!hash) continue;
+      const dist = hammingDistance(slotHash, hash);
+      if (dist < bestDist) { bestDist = dist; bestItem = item; }
     }
-  }
 
-  // 相似度門檻（距離越小越像，0=完全相同，64=完全不同）
-  if (bestDist < 15) {
-    return furnitureDB.find(f => String(f.id) === String(bestMatch));
-  }
-  return null;
-}
-
-// 計算感知哈希（pHash）
-function pHash(imageData) {
-  const size   = 32;
-  const small  = 8;
-  const canvas = document.createElement("canvas");
-  const ctx    = canvas.getContext("2d");
-  canvas.width  = size;
-  canvas.height = size;
-
-  // 縮小圖像
-  const tmpCanvas = document.createElement("canvas");
-  tmpCanvas.width  = imageData.width;
-  tmpCanvas.height = imageData.height;
-  tmpCanvas.getContext("2d").putImageData(imageData, 0, 0);
-  ctx.drawImage(tmpCanvas, 0, 0, size, size);
-
-  const pixels = ctx.getImageData(0, 0, size, size).data;
-  const gray   = [];
-  for (let i = 0; i < pixels.length; i += 4) {
-    gray.push(0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2]);
-  }
-
-  // DCT（簡化版）
-  const dct = computeDCT(gray, size);
-
-  // 取左上角 8x8
-  const dctSmall = [];
-  for (let y = 0; y < small; y++) {
-    for (let x = 0; x < small; x++) {
-      dctSmall.push(dct[y * size + x]);
-    }
-  }
-
-  // 平均值比較產生哈希
-  const avg  = dctSmall.reduce((a, b) => a + b, 0) / dctSmall.length;
-  return dctSmall.map(v => v > avg ? 1 : 0);
-}
-
-function computeDCT(pixels, n) {
-  const result = new Array(n * n).fill(0);
-  for (let u = 0; u < n; u++) {
-    for (let v = 0; v < n; v++) {
-      let sum = 0;
-      for (let x = 0; x < n; x++) {
-        for (let y = 0; y < n; y++) {
-          sum += pixels[x * n + y] *
-            Math.cos((2*x+1)*u*Math.PI/(2*n)) *
-            Math.cos((2*y+1)*v*Math.PI/(2*n));
-        }
+    if (bestItem && bestDist <= threshold) {
+      if (!counts[bestItem.id]) {
+        counts[bestItem.id] = { item: bestItem, count: 0, bestConf: bestDist };
       }
-      result[u * n + v] = sum;
+      counts[bestItem.id].count++;
+      counts[bestItem.id].bestConf = Math.min(counts[bestItem.id].bestConf, bestDist);
+
+      // green overlay on matched slot
+      ctx.fillStyle = 'rgba(110,202,160,0.18)';
+      ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
+      ctx.strokeStyle = 'rgba(110,202,160,0.7)';
+      ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
     }
+
+    showProgress(Math.round((i+1)/slots.length*100));
+
+    // yield to UI every 10 slots
+    if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
   }
-  return result;
+
+  detectedItems = Object.values(counts).map(c => ({
+    id: c.item.id,
+    name: c.item.name,
+    category: c.item.category,
+    categoryId: c.item.categoryId,
+    iconUrl: `icons/${c.item.id}.png`,
+    qty: c.count,
+    confidence: c.bestConf,
+  }));
+
+  hideProgress();
+  const total = detectedItems.reduce((a,b)=>a+b.qty,0);
+  setStatus('ok', `辨識完成：${detectedItems.length} 種家具，共 ${total} 個`);
+  renderResults();
 }
 
-function hammingDistance(h1, h2) {
-  let d = 0;
-  for (let i = 0; i < h1.length; i++) { if (h1[i] !== h2[i]) d++; }
-  return d;
-}
-
-// ── 顯示結果 ──────────────────────────────────────────
+// ── Render results ────────────────────────────────────────────────────────────
 function renderResults() {
-  const grid = document.getElementById("resultsGrid");
-  grid.innerHTML = "";
+  const grid = document.getElementById('furniture-grid');
+  const empty = document.getElementById('empty-state');
+  const exportRow = document.getElementById('export-row');
+  const filterBar = document.getElementById('filter-bar');
+  const summaryRow = document.getElementById('summary-row');
 
-  const items = Object.values(results).sort((a, b) => b.count - a.count);
+  const query = (document.getElementById('search-input').value || '').toLowerCase();
+  const catF  = document.getElementById('cat-filter').value;
 
-  if (items.length === 0) {
-    document.getElementById("noResults").style.display = "block";
-    document.getElementById("statusBar").classList.remove("active");
+  let items = detectedItems.filter(i => {
+    if (query && !i.name.toLowerCase().includes(query)) return false;
+    if (catF && i.category !== catF) return false;
+    return true;
+  });
+
+  if (detectedItems.length === 0) {
+    empty.style.display = ''; grid.innerHTML = '';
+    exportRow.style.display = 'none'; filterBar.style.display = 'none';
+    summaryRow.innerHTML = '';
     return;
   }
 
-  document.getElementById("resultsSection").style.display = "block";
-  document.getElementById("resultCount").textContent =
-    "共辨識出 " + items.length + " 種家具，合計 " +
-    items.reduce((s, i) => s + i.count, 0) + " 件";
+  empty.style.display = 'none';
+  exportRow.style.display = 'flex'; filterBar.style.display = 'flex';
 
-  items.forEach(({ item, count }) => {
-    const card = document.createElement("div");
-    card.className = "furniture-card";
-    const iconSrc = ICONS_DIR + item.id + ".png";
+  // summary chips
+  const total = detectedItems.reduce((a,b)=>a+b.qty,0);
+  const cats = {};
+  detectedItems.forEach(i => cats[i.category] = (cats[i.category]||0) + i.qty);
+  let html = `<div class="chip">共 <span>${detectedItems.length}</span> 種</div>`;
+  html += `<div class="chip">總數量 <span>${total}</span></div>`;
+  Object.entries(cats).sort((a,b)=>b[1]-a[1]).forEach(([c,n]) => {
+    html += `<div class="chip">${c} <span>${n}</span></div>`;
+  });
+  summaryRow.innerHTML = html;
+
+  // cards
+  grid.innerHTML = '';
+  items.sort((a,b) => b.qty - a.qty || a.name.localeCompare(b.name));
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'furniture-card';
     card.innerHTML = `
-      <img src="${iconSrc}" onerror="this.style.display='none'">
-      <div class="name">${item.name_ja || item.name_en}</div>
+      <div class="qty-badge">×${item.qty}</div>
+      <img src="${item.iconUrl}" alt="${item.name}" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\'><rect width=\\'56\\' height=\\'56\\' fill=\\'%23231f32\\'/></svg>'">
+      <div class="name">${item.name}</div>
       <div class="cat">${item.category}</div>
-      <div class="qty">× ${count}</div>
+      <div class="confidence">距離 ${item.confidence}</div>
     `;
     grid.appendChild(card);
   });
-
-  document.getElementById("statusBar").classList.remove("active");
 }
 
-// ── 工具函式 ──────────────────────────────────────────
-function showStatus(msg, pct) {
-  document.getElementById("statusBar").classList.add("active");
-  document.getElementById("statusText").textContent = msg;
-  document.getElementById("progressFill").style.width = pct + "%";
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const rows = [['ID','名稱','類別','數量','最佳距離']];
+  detectedItems.forEach(i => rows.push([i.id, i.name, i.category, i.qty, i.confidence]));
+  const csv = rows.map(r => r.map(v=>`"${v}"`).join(',')).join('\n');
+  download('furniture_result.csv', csv, 'text/csv');
 }
 
-function log(msg) {
-  const el = document.getElementById("debugLog");
-  el.textContent += "[" + new Date().toLocaleTimeString() + "] " + msg + "\n";
+function exportJSON() {
+  download('furniture_result.json', JSON.stringify(detectedItems, null, 2), 'application/json');
 }
 
-// 啟動
-init();
+function copyNames() {
+  const text = detectedItems.map(i=>`${i.name} ×${i.qty}`).join('\n');
+  navigator.clipboard.writeText(text).then(()=>setStatus('ok','已複製到剪貼簿'));
+}
+
+function download(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = name; a.click();
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  const el = document.getElementById('status');
+  el.className = type;
+  document.getElementById('status-text').textContent = msg;
+}
+
+function showProgress(pct) {
+  document.getElementById('progress-bar-wrap').style.display = '';
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progress-bar-wrap').style.display = 'none';
+}
+
+// ── File upload ───────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      uploadedImage = img;
+      // draw preview
+      const wrap = document.getElementById('preview-wrap');
+      const canvas = document.getElementById('preview-canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      wrap.style.display = '';
+      document.getElementById('btn-detect').disabled = false;
+      setStatus('ok', `已載入：${img.naturalWidth}×${img.naturalHeight} px`);
+      detectedItems = [];
+      renderResults();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// drag & drop
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  handleFile(e.dataTransfer.files[0]);
+});
+document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
+
+// sliders
+['threshold','slot-size','slot-gap'].forEach(id => {
+  document.getElementById(id).addEventListener('input', e => {
+    document.getElementById(id+'-val').textContent = e.target.value;
+  });
+});
+
+// buttons
+document.getElementById('btn-detect').addEventListener('click', identify);
+document.getElementById('btn-clear').addEventListener('click', () => {
+  uploadedImage = null;
+  detectedItems = [];
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('btn-detect').disabled = true;
+  renderResults();
+  setStatus('', '已清除，等待上傳圖片…');
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadDB();
 </script>
 </body>
 </html>

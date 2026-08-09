@@ -1,0 +1,1 @@
+# FFXIV Furniture Tracker

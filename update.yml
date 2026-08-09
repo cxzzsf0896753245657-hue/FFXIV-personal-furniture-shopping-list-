@@ -1,0 +1,52 @@
+name: Update FF14 Furniture Data
+
+on:
+  # 每月1日 UTC 00:00 自動執行
+  schedule:
+    - cron: '0 0 1 * *'
+  
+  # 允許手動觸發（遊戲大版本更新後可以手動跑）
+  workflow_dispatch:
+    inputs:
+      force_full:
+        description: '強制全量更新（忽略現有資料重新抓取）'
+        required: false
+        default: 'false'
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write  # 允許推送 commit
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install requests Pillow imagehash
+      
+      - name: Run update script
+        env:
+          FORCE_FULL: ${{ github.event.inputs.force_full || 'false' }}
+        run: python scripts/update_furniture.py
+      
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/furniture.json data/icon_map.json icons/
+          git commit -m "Auto-update furniture data $(date +'%Y-%m-%d')"
+          git push

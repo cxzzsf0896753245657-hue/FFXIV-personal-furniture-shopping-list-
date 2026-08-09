@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FF14 家具辨識工具</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: "Noto Sans TC", sans-serif;
+    min-height: 100vh;
+  }
+
+  header {
+    background: #16213e;
+    border-bottom: 2px solid #c8a96e;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { font-size: 1.3rem; color: #c8a96e; }
+  header span { font-size: 0.85rem; color: #888; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* 上傳區 */
+  .upload-area {
+    border: 2px dashed #c8a96e55;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #16213e;
+    margin-bottom: 24px;
+  }
+  .upload-area:hover, .upload-area.drag-over {
+    border-color: #c8a96e;
+    background: #1e2d4a;
+  }
+  .upload-area .icon { font-size: 3rem; margin-bottom: 12px; }
+  .upload-area p { color: #aaa; margin-top: 8px; font-size: 0.9rem; }
+  .upload-area input { display: none; }
+
+  .btn {
+    background: #c8a96e;
+    color: #1a1a2e;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 12px;
+  }
+  .btn:hover { background: #e0c080; }
+  .btn:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+  /* 預覽截圖區 */
+  .previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .preview-item {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #333;
+  }
+  .preview-item img { display: block; max-height: 200px; max-width: 300px; }
+  .preview-item .remove {
+    position: absolute; top: 4px; right: 4px;
+    background: #c0392b; color: white; border: none;
+    border-radius: 50%; width: 22px; height: 22px;
+    cursor: pointer; font-size: 14px; line-height: 22px;
+  }
+  .preview-label {
+    background: #00000088;
+    color: #c8a96e;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    text-align: center;
+  }
+
+  /* 狀態列 */
+  .status-bar {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+    color: #aaa;
+    display: none;
+  }
+  .status-bar.active { display: block; }
+  .progress-bar {
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #c8a96e;
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* 結果區 */
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .results-header h2 { font-size: 1.1rem; color: #c8a96e; }
+  .results-header .count { color: #888; font-size: 0.9rem; }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .furniture-card {
+    background: #16213e;
+    border: 1px solid #2a3a5c;
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+    transition: border-color 0.2s;
+  }
+  .furniture-card:hover { border-color: #c8a96e; }
+  .furniture-card img {
+    width: 48px; height: 48px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    margin-bottom: 8px;
+  }
+  .furniture-card .name {
+    font-size: 0.8rem;
+    color: #e0e0e0;
+    line-height: 1.3;
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .furniture-card .cat {
+    font-size: 0.7rem;
+    color: #888;
+    margin-bottom: 6px;
+  }
+  .furniture-card .qty {
+    background: #c8a96e22;
+    border: 1px solid #c8a96e55;
+    color: #c8a96e;
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+
+  /* 無結果 */
+  .no-results {
+    text-align: center;
+    color: #555;
+    padding: 40px;
+    display: none;
+  }
+
+  /* Canvas（隱藏，用於圖像處理）*/
+  #workCanvas { display: none; }
+
+  /* Debug 模式 */
+  .debug-section {
+    background: #0d1117;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 32px;
+    font-size: 0.75rem;
+    color: #555;
+  }
+  .debug-section summary { cursor: pointer; color: #888; margin-bottom: 8px; }
+  #debugLog { white-space: pre; max-height: 200px; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚒ FF14 家具辨識工具</h1>
+    <span id="dbStatus">正在載入家具資料庫...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- 上傳區 -->
+  <div class="upload-area" id="uploadArea">
+    <div class="icon">📦</div>
+    <div><strong>點擊上傳</strong>或拖曳截圖到此處</div>
+    <p>支援背包、倉庫截圖，可同時上傳多張</p>
+    <p>支援 PNG、JPG、WebP</p>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+    <br>
+    <button class="btn" onclick="document.getElementById('fileInput').click()">選擇截圖</button>
+  </div>
+
+  <!-- 預覽 -->
+  <div class="previews" id="previews"></div>
+
+  <!-- 開始辨識按鈕 -->
+  <div style="text-align:center; margin-bottom:24px;">
+    <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>開始辨識</button>
+  </div>
+
+  <!-- 狀態列 -->
+  <div class="status-bar" id="statusBar">
+    <span id="statusText">準備中...</span>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <!-- 結果 -->
+  <div id="resultsSection" style="display:none;">
+    <div class="results-header">
+      <h2>辨識結果</h2>
+      <span class="count" id="resultCount"></span>
+    </div>
+    <div class="results-grid" id="resultsGrid"></div>
+  </div>
+
+  <div class="no-results" id="noResults">找不到任何家具，請確認截圖是否為背包或倉庫畫面</div>
+
+  <!-- Canvas（圖像處理用） -->
+  <canvas id="workCanvas"></canvas>
+
+  <!-- Debug -->
+  <details class="debug-section">
+    <summary>Debug 資訊</summary>
+    <div id="debugLog"></div>
+  </details>
+
+</div>
+
+<script>
+// ── 設定 ──────────────────────────────────────────────
+const DATA_URL  = "./data/furniture.json";
+const ICONS_DIR = "./icons/";
+
+// ── 全域狀態 ──────────────────────────────────────────
+let furnitureDB  = [];      // 完整家具資料庫
+let iconCache    = {};      // 已載入的圖示 ImageData
+let uploadedFiles = [];     // 使用者上傳的檔案
+let results      = {};      // { itemId: { item, count } }
+
+// ── 初始化：載入家具資料庫 ────────────────────────────
+async function init() {
+  log("開始載入家具資料庫...");
+  try {
+    const resp = await fetch(DATA_URL);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    furnitureDB = await resp.json();
+    document.getElementById("dbStatus").textContent =
+      "已載入 " + furnitureDB.length + " 筆家具資料";
+    log("資料庫載入完成，共 " + furnitureDB.length + " 筆");
+  } catch(e) {
+    document.getElementById("dbStatus").textContent = "❌ 資料庫載入失敗：" + e.message;
+    log("資料庫載入失敗：" + e);
+  }
+}
+
+// ── 上傳處理 ──────────────────────────────────────────
+document.getElementById("fileInput").addEventListener("change", function(e) {
+  handleFiles(Array.from(e.target.files));
+});
+
+const uploadArea = document.getElementById("uploadArea");
+uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("drag-over"); });
+uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("drag-over"));
+uploadArea.addEventListener("drop", e => {
+  e.preventDefault();
+  uploadArea.classList.remove("drag-over");
+  handleFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/")));
+});
+
+function handleFiles(files) {
+  files.forEach(file => {
+    if (!file.type.startsWith("image/")) return;
+    uploadedFiles.push(file);
+    addPreview(file, uploadedFiles.length - 1);
+  });
+  document.getElementById("analyzeBtn").disabled = uploadedFiles.length === 0 || furnitureDB.length === 0;
+}
+
+function addPreview(file, idx) {
+  const div = document.createElement("div");
+  div.className = "preview-item";
+  div.id = "preview-" + idx;
+  const url = URL.createObjectURL(file);
+  div.innerHTML = `
+    <img src="${url}">
+    <button class="remove" onclick="removeFile(${idx})">×</button>
+    <div class="preview-label">${file.name}</div>
+  `;
+  document.getElementById("previews").appendChild(div);
+}
+
+function removeFile(idx) {
+  uploadedFiles[idx] = null;
+  const el = document.getElementById("preview-" + idx);
+  if (el) el.remove();
+  const remaining = uploadedFiles.filter(f => f !== null);
+  document.getElementById("analyzeBtn").disabled = remaining.length === 0;
+}
+
+// ── 主要辨識流程 ──────────────────────────────────────
+async function startAnalysis() {
+  const files = uploadedFiles.filter(f => f !== null);
+  if (files.length === 0) return;
+
+  results = {};
+  document.getElementById("analyzeBtn").disabled = true;
+  document.getElementById("resultsSection").style.display = "none";
+  document.getElementById("noResults").style.display = "none";
+
+  showStatus("正在預載圖示資料庫...", 0);
+
+  // 預載所有家具圖示
+  await preloadIcons();
+
+  showStatus("開始辨識截圖...", 10);
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const pct  = 10 + (i / files.length) * 85;
+    showStatus(`辨識第 ${i+1}/${files.length} 張：${file.name}`, pct);
+    log("處理：" + file.name);
+    await analyzeImage(file);
+  }
+
+  showStatus("辨識完成！", 100);
+  renderResults();
+  document.getElementById("analyzeBtn").disabled = false;
+}
+
+// ── 預載圖示 ──────────────────────────────────────────
+async function preloadIcons() {
+  const canvas  = document.getElementById("workCanvas");
+  const ctx     = canvas.getContext("2d");
+  const total   = furnitureDB.length;
+  let loaded    = 0;
+
+  const batchSize = 20;
+  for (let i = 0; i < furnitureDB.length; i += batchSize) {
+    const batch = furnitureDB.slice(i, i + batchSize);
+    await Promise.all(batch.map(item => loadIcon(item, canvas, ctx)));
+    loaded += batch.length;
+    showStatus("預載圖示 " + Math.min(loaded, total) + "/" + total, (loaded / total) * 10);
+  }
+  log("圖示預載完成，共 " + Object.keys(iconCache).length + " 個");
+}
+
+function loadIcon(item, canvas, ctx) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const src = ICONS_DIR + item.id + ".png";
+    img.onload = () => {
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      try {
+        iconCache[item.id] = ctx.getImageData(0, 0, img.width, img.height);
+      } catch(e) {}
+      resolve();
+    };
+    img.onerror = () => resolve(); // 圖示不存在就跳過
+    img.src = src;
+  });
+}
+
+// ── 分析單張截圖 ──────────────────────────────────────
+async function analyzeImage(file) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.getElementById("workCanvas");
+      const ctx    = canvas.getContext("2d");
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const slots = detectSlots(img.width, img.height, canvas, ctx);
+      log("偵測到 " + slots.length + " 個格子");
+
+      slots.forEach(slot => {
+        const match = matchSlot(slot.imageData);
+        if (match) {
+          if (results[match.id]) {
+            results[match.id].count++;
+          } else {
+            results[match.id] = { item: match, count: 1 };
+          }
+        }
+      });
+      resolve();
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ── 偵測背包格子 ──────────────────────────────────────
+function detectSlots(imgW, imgH, canvas, ctx) {
+  const slots = [];
+  // FF14 背包格子大小約為畫面寬的 1/25，自動推算
+  // 常見解析度下格子約 40~50px
+  const slotSize = Math.round(imgW / 25);
+  const step     = slotSize + Math.round(slotSize * 0.15); // 格子間距
+
+  // 掃描整張圖，找出非空白的格子區域
+  for (let y = 0; y + slotSize < imgH; y += step) {
+    for (let x = 0; x + slotSize < imgW; x += step) {
+      const data = ctx.getImageData(x, y, slotSize, slotSize);
+      if (isNonEmpty(data)) {
+        slots.push({ x, y, imageData: data });
+      }
+    }
+  }
+  return slots;
+}
+
+// 判斷格子是否有內容（非全黑/全透明）
+function isNonEmpty(imageData) {
+  const d = imageData.data;
+  let nonBlack = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i+1], b = d[i+2];
+    if (r > 30 || g > 30 || b > 30) nonBlack++;
+  }
+  return nonBlack > (d.length / 4) * 0.1; // 超過10%非黑色像素
+}
+
+// ── 圖示比對（感知哈希 pHash）────────────────────────
+function matchSlot(slotData) {
+  const slotHash = pHash(slotData);
+  let bestMatch  = null;
+  let bestDist   = Infinity;
+
+  for (const [id, cachedData] of Object.entries(iconCache)) {
+    const dist = hammingDistance(slotHash, pHash(cachedData));
+    if (dist < bestDist) {
+      bestDist  = dist;
+      bestMatch = id;
+    }
+  }
+
+  // 相似度門檻（距離越小越像，0=完全相同，64=完全不同）
+  if (bestDist < 15) {
+    return furnitureDB.find(f => String(f.id) === String(bestMatch));
+  }
+  return null;
+}
+
+// 計算感知哈希（pHash）
+function pHash(imageData) {
+  const size   = 32;
+  const small  = 8;
+  const canvas = document.createElement("canvas");
+  const ctx    = canvas.getContext("2d");
+  canvas.width  = size;
+  canvas.height = size;
+
+  // 縮小圖像
+  const tmpCanvas = document.createElement("canvas");
+  tmpCanvas.width  = imageData.width;
+  tmpCanvas.height = imageData.height;
+  tmpCanvas.getContext("2d").putImageData(imageData, 0, 0);
+  ctx.drawImage(tmpCanvas, 0, 0, size, size);
+
+  const pixels = ctx.getImageData(0, 0, size, size).data;
+  const gray   = [];
+  for (let i = 0; i < pixels.length; i += 4) {
+    gray.push(0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2]);
+  }
+
+  // DCT（簡化版）
+  const dct = computeDCT(gray, size);
+
+  // 取左上角 8x8
+  const dctSmall = [];
+  for (let y = 0; y < small; y++) {
+    for (let x = 0; x < small; x++) {
+      dctSmall.push(dct[y * size + x]);
+    }
+  }
+
+  // 平均值比較產生哈希
+  const avg  = dctSmall.reduce((a, b) => a + b, 0) / dctSmall.length;
+  return dctSmall.map(v => v > avg ? 1 : 0);
+}
+
+function computeDCT(pixels, n) {
+  const result = new Array(n * n).fill(0);
+  for (let u = 0; u < n; u++) {
+    for (let v = 0; v < n; v++) {
+      let sum = 0;
+      for (let x = 0; x < n; x++) {
+        for (let y = 0; y < n; y++) {
+          sum += pixels[x * n + y] *
+            Math.cos((2*x+1)*u*Math.PI/(2*n)) *
+            Math.cos((2*y+1)*v*Math.PI/(2*n));
+        }
+      }
+      result[u * n + v] = sum;
+    }
+  }
+  return result;
+}
+
+function hammingDistance(h1, h2) {
+  let d = 0;
+  for (let i = 0; i < h1.length; i++) { if (h1[i] !== h2[i]) d++; }
+  return d;
+}
+
+// ── 顯示結果 ──────────────────────────────────────────
+function renderResults() {
+  const grid = document.getElementById("resultsGrid");
+  grid.innerHTML = "";
+
+  const items = Object.values(results).sort((a, b) => b.count - a.count);
+
+  if (items.length === 0) {
+    document.getElementById("noResults").style.display = "block";
+    document.getElementById("statusBar").classList.remove("active");
+    return;
+  }
+
+  document.getElementById("resultsSection").style.display = "block";
+  document.getElementById("resultCount").textContent =
+    "共辨識出 " + items.length + " 種家具，合計 " +
+    items.reduce((s, i) => s + i.count, 0) + " 件";
+
+  items.forEach(({ item, count }) => {
+    const card = document.createElement("div");
+    card.className = "furniture-card";
+    const iconSrc = ICONS_DIR + item.id + ".png";
+    card.innerHTML = `
+      <img src="${iconSrc}" onerror="this.style.display='none'">
+      <div class="name">${item.name_ja || item.name_en}</div>
+      <div class="cat">${item.category}</div>
+      <div class="qty">× ${count}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  document.getElementById("statusBar").classList.remove("active");
+}
+
+// ── 工具函式 ──────────────────────────────────────────
+function showStatus(msg, pct) {
+  document.getElementById("statusBar").classList.add("active");
+  document.getElementById("statusText").textContent = msg;
+  document.getElementById("progressFill").style.width = pct + "%";
+}
+
+function log(msg) {
+  const el = document.getElementById("debugLog");
+  el.textContent += "[" + new Date().toLocaleTimeString() + "] " + msg + "\n";
+}
+
+// 啟動
+init();
+</script>
+</body>
+</html>

@@ -165,9 +165,15 @@ def fetch_all_furniture(force: bool = False) -> list[dict]:
     if not force and FURNITURE_JSON.exists():
         try:
             with open(FURNITURE_JSON, encoding="utf-8") as f:
-                for item in json.load(f):
+                loaded = json.load(f)
+            # 過濾舊格式（沒有 iconUrl 欄位）：遇到就整批丟棄，強制全量重抓
+            valid = [item for item in loaded if "iconUrl" in item]
+            if len(valid) < len(loaded):
+                print(f"  偵測到舊格式資料（{len(loaded)-len(valid)} 筆缺少 iconUrl），改用全量模式")
+            else:
+                for item in valid:
                     existing[item["id"]] = item
-            print(f"  已有 {len(existing)} 筆資料（增量模式）")
+                print(f"  已有 {len(existing)} 筆資料（增量模式）")
         except Exception:
             print("  現有 JSON 讀取失敗，改用全量模式")
 
@@ -345,7 +351,7 @@ def save_outputs(furniture: list[dict]):
         json.dump(furniture, f, ensure_ascii=False, indent=2)
     print(f"已寫入 {FURNITURE_JSON}（{len(furniture)} 筆）")
 
-    icon_map = {str(item["id"]): item["iconUrl"] for item in furniture}
+    icon_map = {str(item["id"]): item.get("iconUrl", "") for item in furniture}
     with open(ICON_MAP_JSON, "w", encoding="utf-8") as f:
         json.dump(icon_map, f, ensure_ascii=False, indent=2)
     print(f"已寫入 {ICON_MAP_JSON}（{len(icon_map)} 筆）")

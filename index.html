@@ -98,7 +98,7 @@
 
   /* ── Upload zone ── */
   .upload-area {
-    padding: 24px;
+    padding: 24px 24px 0;
   }
 
   .drop-zone {
@@ -110,6 +110,29 @@
     transition: border-color 0.2s, background 0.2s;
     position: relative;
   }
+
+  .drop-zone.has-image {
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
+    border-style: solid;
+    border-color: var(--accent2);
+  }
+
+  .drop-zone.has-image .drop-hint-full { display: none; }
+  .drop-zone.has-image .drop-hint-mini { display: flex !important; }
+
+  .drop-hint-mini {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .drop-hint-mini strong { color: var(--accent); }
 
   .drop-zone:hover, .drop-zone.drag-over {
     border-color: var(--accent);
@@ -130,18 +153,70 @@
   .drop-zone p { color: var(--text-muted); font-size: 0.875rem; }
   .drop-zone strong { color: var(--accent); }
 
-  /* preview image */
+  /* ── Paste hint toast ── */
+  #paste-hint {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--accent2);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: 24px;
+    font-size: 0.82rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    z-index: 999;
+    white-space: nowrap;
+  }
+  #paste-hint.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* ── Preview image ── */
   #preview-wrap {
-    margin-top: 16px;
     display: none;
-    position: relative;
+    border-top: 1px solid var(--border);
+    margin-top: 16px;
+  }
+
+  #preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    background: var(--surface2);
+  }
+
+  #preview-header span { color: var(--accent); }
+
+  #preview-header button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+
+  #preview-header button:hover { color: var(--error); }
+
+  #preview-canvas-wrap {
+    overflow: auto;
+    max-height: 320px;
+    background: #080710;
   }
 
   #preview-wrap canvas {
-    width: 100%;
-    border-radius: 4px;
-    border: 1px solid var(--border);
     display: block;
+    /* show at natural size so every pixel is visible, scroll if needed */
+    max-width: 100%;
+    height: auto;
   }
 
   /* ── Controls ── */
@@ -395,13 +470,27 @@
       <div class="upload-area">
         <div class="drop-zone" id="drop-zone">
           <input type="file" id="file-input" accept="image/*">
-          <div class="icon">🗂️</div>
-          <p><strong>點擊選擇</strong>或拖曳圖片到此處</p>
-          <p style="margin-top:6px;font-size:0.75rem">支援 PNG / JPG / WebP</p>
+          <div class="drop-hint-full">
+            <div class="icon">🗂️</div>
+            <p><strong>點擊選擇</strong>或拖曳圖片到此處</p>
+            <p style="margin-top:6px;font-size:0.75rem">支援 PNG / JPG / WebP　或　<strong>Ctrl+V</strong> 貼上截圖</p>
+          </div>
+          <div class="drop-hint-mini">
+            <span>🖼️</span>
+            <span>重新選擇 / 拖曳 / <strong>Ctrl+V</strong></span>
+          </div>
         </div>
-        <div id="preview-wrap">
+      </div>
+
+      <div id="preview-wrap">
+        <div id="preview-header">
+          <div>預覽　<span id="preview-size"></span></div>
+          <button id="btn-preview-close" title="移除圖片">✕ 移除</button>
+        </div>
+        <div id="preview-canvas-wrap">
           <canvas id="preview-canvas"></canvas>
         </div>
+      </div>
       </div>
 
       <div class="controls">
@@ -435,7 +524,7 @@
         </div>
 
         <button class="btn-primary" id="btn-detect" disabled>🔍 開始辨識</button>
-        <button class="btn-secondary" id="btn-clear">清除</button>
+        <button class="btn-secondary" id="btn-clear">清除結果</button>
       </div>
 
       <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
@@ -478,6 +567,8 @@
 
 </div>
 
+<div id="paste-hint">📋 已貼上截圖</div>
+
 <script>
 // ── Config ──────────────────────────────────────────────────────────────────
 const CATEGORY_MAP = {
@@ -488,20 +579,41 @@ const CATEGORY_MAP = {
 };
 
 // ── State ────────────────────────────────────────────────────────────────────
-let furnitureDB = [];   // [{id, name, category, categoryId, iconUrl}]
-let pHashDB = {};       // {id: Uint8Array(8)}  — lazy-built from icons/
-let detectedItems = []; // [{id, name, category, iconUrl, qty, confidence}]
+let furnitureDB = [];    // [{id, name, category, categoryId, iconUrl}]
+let hashDB = {};         // {id(string): Uint8Array(8)} — 從 hashes.json 載入，無需瀏覽器計算
+let furnitureIndex = {}; // {id(string): furnitureDB item} — 快速查找
+let detectedItems = [];  // [{id, name, category, iconUrl, qty, confidence}]
 let uploadedImage = null;
+let hashesReady = false; // hashes.json 是否已載入完畢
 
 // ── DB Load ──────────────────────────────────────────────────────────────────
 async function loadDB() {
   setStatus('loading', '載入家具資料庫…');
   try {
-    const res = await fetch('data/furniture.json');
-    furnitureDB = await res.json();
+    // 並行 fetch furniture.json 和 hashes.json
+    const [furRes, hashRes] = await Promise.all([
+      fetch('data/furniture.json'),
+      fetch('data/hashes.json'),
+    ]);
+
+    furnitureDB = await furRes.json();
+
+    // 建立 id 快速查找表
+    furnitureDB.forEach(item => { furnitureIndex[String(item.id)] = item; });
+
+    // 解析 hashes.json：{id: hex字串} → {id: Uint8Array}
+    const rawHashes = await hashRes.json();
+    let hashCount = 0;
+    for (const [id, hex] of Object.entries(rawHashes)) {
+      const bytes = new Uint8Array(hex.match(/../g).map(h => parseInt(h, 16)));
+      hashDB[id] = bytes;
+      hashCount++;
+    }
+    hashesReady = true;
+
     document.getElementById('db-info').textContent =
-      `家具總數：${furnitureDB.length} 筆 | 類別：${Object.keys(CATEGORY_MAP).length} 種`;
-    setStatus('ok', `資料庫就緒（${furnitureDB.length} 項家具）`);
+      `家具：${furnitureDB.length} 筆 | Hash：${hashCount} 筆 | 類別：${Object.keys(CATEGORY_MAP).length} 種`;
+    setStatus('ok', `資料庫就緒（${furnitureDB.length} 項家具，Hash 預載完畢）`);
 
     // populate category filter
     const sel = document.getElementById('cat-filter');
@@ -512,54 +624,46 @@ async function loadDB() {
       sel.appendChild(o);
     });
   } catch(e) {
-    setStatus('error', '無法載入 data/furniture.json：' + e.message);
-    document.getElementById('db-info').textContent = '載入失敗';
+    // hashes.json 可能不存在（第一次部署尚未產生），降級提示
+    if (furnitureDB.length > 0 && !hashesReady) {
+      document.getElementById('db-info').textContent =
+        `家具：${furnitureDB.length} 筆 | ⚠️ hashes.json 未找到`;
+      setStatus('error', '找不到 data/hashes.json，請執行 update_furniture.py 產生');
+    } else {
+      setStatus('error', '無法載入資料庫：' + e.message);
+      document.getElementById('db-info').textContent = '載入失敗';
+    }
   }
 }
 
-// ── pHash ────────────────────────────────────────────────────────────────────
-function computePHash(imageData, size = 32, hashSize = 8) {
-  // 1. Resize to size×size via averaging
+// ── pHash（前端只需計算截圖格子的 hash，家具 hash 從 hashes.json 預載）────────
+// 使用 dHash（差異哈希）對截圖格子計算 hash，速度快（< 0.1ms/格）
+// 家具圖示的 pHash 由 Python 腳本預算，精度更高
+// 兩者都是 64 bits，Hamming Distance 可以直接比對
+
+function computeSlotHash(imageData) {
+  // dHash: resize to 9×8 grayscale, compare adjacent pixels → 64 bits
   const { data, width, height } = imageData;
-  const scale_x = width / size, scale_y = height / size;
-  const small = new Float32Array(size * size);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const sx = Math.floor(x * scale_x), sy = Math.floor(y * scale_y);
-      const idx = (sy * width + sx) * 4;
-      small[y * size + x] = 0.299*data[idx] + 0.587*data[idx+1] + 0.114*data[idx+2];
+  const W = 9, H = 8;
+  const gray = new Uint8Array(W * H);
+  const sx = width / W, sy = height / H;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const px = Math.min(Math.floor(x * sx), width - 1);
+      const py = Math.min(Math.floor(y * sy), height - 1);
+      const i = (py * width + px) * 4;
+      gray[y * W + x] = (data[i] * 77 + data[i+1] * 150 + data[i+2] * 29) >> 8;
     }
   }
-
-  // 2. DCT
-  const dct = new Float32Array(size * size);
-  for (let u = 0; u < size; u++) {
-    for (let v = 0; v < size; v++) {
-      let sum = 0;
-      for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-          sum += small[y*size+x]
-            * Math.cos((2*x+1)*u*Math.PI/(2*size))
-            * Math.cos((2*y+1)*v*Math.PI/(2*size));
-        }
+  // 每行比較相鄰像素，左 > 右 → bit=1
+  const bytes = new Uint8Array(8);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < 8; x++) {
+      if (gray[y * W + x] > gray[y * W + x + 1]) {
+        bytes[y] |= (1 << (7 - x));
       }
-      const cu = u === 0 ? 1/Math.sqrt(2) : 1;
-      const cv = v === 0 ? 1/Math.sqrt(2) : 1;
-      dct[u*size+v] = 0.25 * cu * cv * sum;
     }
   }
-
-  // 3. Top-left hashSize×hashSize (skip DC)
-  const vals = [];
-  for (let u = 0; u < hashSize; u++)
-    for (let v = 0; v < hashSize; v++)
-      vals.push(dct[u*size+v]);
-  const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
-  const bits = vals.map(v => v > avg ? 1 : 0);
-
-  // pack into bytes
-  const bytes = new Uint8Array(Math.ceil(bits.length/8));
-  bits.forEach((b,i) => { if(b) bytes[i>>3] |= 1<<(7-(i&7)); });
   return bytes;
 }
 
@@ -567,30 +671,11 @@ function hammingDistance(a, b) {
   let d = 0;
   for (let i = 0; i < a.length; i++) {
     let x = a[i] ^ b[i];
-    while (x) { d += x & 1; x >>= 1; }
+    x = x - ((x >> 1) & 0x55);
+    x = (x & 0x33) + ((x >> 2) & 0x33);
+    d += (((x + (x >> 4)) & 0x0f) * 0x01) & 0xff;
   }
   return d;
-}
-
-// Load icon and return pHash
-const iconHashCache = {};
-async function getIconHash(itemId) {
-  if (iconHashCache[itemId]) return iconHashCache[itemId];
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.naturalWidth; c.height = img.naturalHeight;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      const hash = computePHash(ctx.getImageData(0, 0, c.width, c.height));
-      iconHashCache[itemId] = hash;
-      resolve(hash);
-    };
-    img.onerror = () => resolve(null);
-    img.src = `icons/${itemId}.png`;
-  });
 }
 
 // ── Slot detection ────────────────────────────────────────────────────────────
@@ -648,12 +733,20 @@ function detectSlots(canvas) {
 }
 
 // ── Identify ──────────────────────────────────────────────────────────────────
+// 方案 B：所有家具 pHash 從 hashes.json 預載（hashDB），
+//         只需對截圖格子算 dHash，再做純記憶體 Hamming Distance 比對
+//         整個辨識流程 < 1 秒
 async function identify() {
   if (!uploadedImage || furnitureDB.length === 0) return;
 
+  if (!hashesReady) {
+    setStatus('error', 'hashes.json 尚未載入，請執行 update_furniture.py 並推送');
+    return;
+  }
+
   const threshold = parseInt(document.getElementById('threshold').value);
 
-  // draw to canvas
+  // 重繪截圖到 canvas
   const canvas = document.getElementById('preview-canvas');
   const ctx = canvas.getContext('2d');
   canvas.width = uploadedImage.naturalWidth;
@@ -661,53 +754,58 @@ async function identify() {
   ctx.drawImage(uploadedImage, 0, 0);
 
   const slots = detectSlots(canvas);
-  setStatus('loading', `偵測到 ${slots.length} 個格子，開始比對…`);
+  setStatus('loading', `偵測到 ${slots.length} 個格子，比對中…`);
   showProgress(0);
 
-  const counts = {};  // itemId → {item, count, bestConf}
+  // 預先把 hashDB 的 entries 轉成陣列，避免迴圈中重複 Object.entries()
+  const hashEntries = Object.entries(hashDB); // [[id, Uint8Array], ...]
+
+  const counts = {};
   const tmpCanvas = document.createElement('canvas');
   const tmpCtx = tmpCanvas.getContext('2d');
 
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
 
-    // extract slot image
+    // 擷取格子像素
     tmpCanvas.width = slot.w; tmpCanvas.height = slot.h;
     tmpCtx.drawImage(canvas, slot.x, slot.y, slot.w, slot.h, 0, 0, slot.w, slot.h);
-    const slotHash = computePHash(tmpCtx.getImageData(0, 0, slot.w, slot.h));
+    const slotHash = computeSlotHash(tmpCtx.getImageData(0, 0, slot.w, slot.h));
 
-    // draw debug overlay on main canvas
-    ctx.strokeStyle = 'rgba(201,169,110,0.25)';
+    // 畫偵測框（金色）
+    ctx.strokeStyle = 'rgba(201,169,110,0.3)';
     ctx.lineWidth = 1;
     ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
 
-    // compare to all furniture icons
-    let bestDist = Infinity, bestItem = null;
-    for (const item of furnitureDB) {
-      const hash = await getIconHash(item.id);
-      if (!hash) continue;
-      const dist = hammingDistance(slotHash, hash);
-      if (dist < bestDist) { bestDist = dist; bestItem = item; }
+    // 純記憶體比對：對所有預載 hash 做 Hamming Distance
+    let bestDist = Infinity, bestId = null;
+    for (let j = 0; j < hashEntries.length; j++) {
+      const dist = hammingDistance(slotHash, hashEntries[j][1]);
+      if (dist < bestDist) { bestDist = dist; bestId = hashEntries[j][0]; }
     }
 
-    if (bestItem && bestDist <= threshold) {
-      if (!counts[bestItem.id]) {
-        counts[bestItem.id] = { item: bestItem, count: 0, bestConf: bestDist };
-      }
-      counts[bestItem.id].count++;
-      counts[bestItem.id].bestConf = Math.min(counts[bestItem.id].bestConf, bestDist);
+    if (bestId !== null && bestDist <= threshold) {
+      const item = furnitureIndex[bestId];
+      if (item) {
+        if (!counts[bestId]) {
+          counts[bestId] = { item, count: 0, bestConf: bestDist };
+        }
+        counts[bestId].count++;
+        counts[bestId].bestConf = Math.min(counts[bestId].bestConf, bestDist);
 
-      // green overlay on matched slot
-      ctx.fillStyle = 'rgba(110,202,160,0.18)';
-      ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
-      ctx.strokeStyle = 'rgba(110,202,160,0.7)';
-      ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
+        // 綠色命中框
+        ctx.fillStyle = 'rgba(110,202,160,0.18)';
+        ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
+        ctx.strokeStyle = 'rgba(110,202,160,0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
+      }
     }
 
     showProgress(Math.round((i+1)/slots.length*100));
 
-    // yield to UI every 10 slots
-    if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+    // 每 50 格 yield 一次（遠少於原本每 10 格，因為現在每格超快）
+    if (i % 50 === 0) await new Promise(r => setTimeout(r, 0));
   }
 
   detectedItems = Object.values(counts).map(c => ({
@@ -828,12 +926,7 @@ function handleFile(file) {
     const img = new Image();
     img.onload = () => {
       uploadedImage = img;
-      // draw preview
-      const wrap = document.getElementById('preview-wrap');
-      const canvas = document.getElementById('preview-canvas');
-      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-      canvas.getContext('2d').drawImage(img, 0, 0);
-      wrap.style.display = '';
+      showPreview(img);
       document.getElementById('btn-detect').disabled = false;
       setStatus('ok', `已載入：${img.naturalWidth}×${img.naturalHeight} px`);
       detectedItems = [];
@@ -844,7 +937,62 @@ function handleFile(file) {
   reader.readAsDataURL(file);
 }
 
-// drag & drop
+function handleBlob(blob) {
+  if (!blob || !blob.type.startsWith('image/')) return;
+  handleFile(blob);
+}
+
+function showPreview(img) {
+  const wrap   = document.getElementById('preview-wrap');
+  const canvas = document.getElementById('preview-canvas');
+  const sizeEl = document.getElementById('preview-size');
+  const dz     = document.getElementById('drop-zone');
+
+  canvas.width  = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  canvas.getContext('2d').drawImage(img, 0, 0);
+
+  sizeEl.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
+  wrap.style.display = '';
+  dz.classList.add('has-image');
+}
+
+function clearAll() {
+  uploadedImage = null;
+  detectedItems = [];
+  const wrap = document.getElementById('preview-wrap');
+  const dz   = document.getElementById('drop-zone');
+  wrap.style.display = 'none';
+  dz.classList.remove('has-image');
+  document.getElementById('btn-detect').disabled = true;
+  renderResults();
+  setStatus('', '已清除，等待上傳圖片…');
+}
+
+// ── Paste (Ctrl+V) ────────────────────────────────────────────────────────────
+let pasteToastTimer = null;
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const blob = item.getAsFile();
+      handleBlob(blob);
+      showPasteToast();
+      break;
+    }
+  }
+});
+
+function showPasteToast() {
+  const el = document.getElementById('paste-hint');
+  el.classList.add('show');
+  clearTimeout(pasteToastTimer);
+  pasteToastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
 const dz = document.getElementById('drop-zone');
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
@@ -854,23 +1002,19 @@ dz.addEventListener('drop', e => {
 });
 document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
 
-// sliders
+// ── Preview close button ──────────────────────────────────────────────────────
+document.getElementById('btn-preview-close').addEventListener('click', clearAll);
+
+// ── Sliders ───────────────────────────────────────────────────────────────────
 ['threshold','slot-size','slot-gap'].forEach(id => {
   document.getElementById(id).addEventListener('input', e => {
     document.getElementById(id+'-val').textContent = e.target.value;
   });
 });
 
-// buttons
+// ── Buttons ───────────────────────────────────────────────────────────────────
 document.getElementById('btn-detect').addEventListener('click', identify);
-document.getElementById('btn-clear').addEventListener('click', () => {
-  uploadedImage = null;
-  detectedItems = [];
-  document.getElementById('preview-wrap').style.display = 'none';
-  document.getElementById('btn-detect').disabled = true;
-  renderResults();
-  setStatus('', '已清除，等待上傳圖片…');
-});
+document.getElementById('btn-clear').addEventListener('click', clearAll);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadDB();

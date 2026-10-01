@@ -34822,5 +34822,17 @@
       "path": "ui/icon/053000/053736.tex",
       "path_hr1": "ui/icon/053000/053736_hr1.tex"
     }
+  },
+  {
+    "id": 51273,
+    "name": "クリスタルトロフィー:魔獣使い",
+    "category": "桌上擺件",
+    "categoryId": 78,
+    "iconUrl": "https://v2.xivapi.com/api/asset?path={'id': 53568, 'path': 'ui/icon/053000/053568.tex', 'path_hr1': 'ui/icon/053000/053568_hr1.tex'}&format=png",
+    "iconPath": {
+      "id": 53568,
+      "path": "ui/icon/053000/053568.tex",
+      "path_hr1": "ui/icon/053000/053568_hr1.tex"
+    }
   }
 ]

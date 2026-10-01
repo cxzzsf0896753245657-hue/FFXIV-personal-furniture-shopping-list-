@@ -2900,5 +2900,6 @@
   "51306": "https://v2.xivapi.com/api/asset?path={'id': 53567, 'path': 'ui/icon/053000/053567.tex', 'path_hr1': 'ui/icon/053000/053567_hr1.tex'}&format=png",
   "51307": "https://v2.xivapi.com/api/asset?path={'id': 51947, 'path': 'ui/icon/051000/051947.tex', 'path_hr1': 'ui/icon/051000/051947_hr1.tex'}&format=png",
   "51314": "https://v2.xivapi.com/api/asset?path={'id': 52804, 'path': 'ui/icon/052000/052804.tex', 'path_hr1': 'ui/icon/052000/052804_hr1.tex'}&format=png",
-  "52298": "https://v2.xivapi.com/api/asset?path={'id': 53736, 'path': 'ui/icon/053000/053736.tex', 'path_hr1': 'ui/icon/053000/053736_hr1.tex'}&format=png"
+  "52298": "https://v2.xivapi.com/api/asset?path={'id': 53736, 'path': 'ui/icon/053000/053736.tex', 'path_hr1': 'ui/icon/053000/053736_hr1.tex'}&format=png",
+  "51273": "https://v2.xivapi.com/api/asset?path={'id': 53568, 'path': 'ui/icon/053000/053568.tex', 'path_hr1': 'ui/icon/053000/053568_hr1.tex'}&format=png"
 }
